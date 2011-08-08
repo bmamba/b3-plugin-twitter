@@ -1,0 +1,18 @@
+<configuration plugin="b3twitter">
+	<settings name="authentication">
+		<set name="consumer_key"></set>
+		<set name="consumer_secret"></set>
+		<set name="access_token"></set>
+		<set name="access_token_secret"></set>
+	</settings>
+
+	<settings name="tweet">
+		<set name="tweetonkick">False</set>
+		<set name="tweetonbantemp">True</set>
+		<set name="tweetonban">True</set>
+	</settings>
+
+	<settings name="commands">
+		<set name="twitterlevel">100</set>
+	</settings>
+</configuration>

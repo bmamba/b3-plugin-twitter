@@ -1,0 +1,21 @@
+This plugin need some preparations before working:
+
+Python packages:
+You need the following packages
+- OAuth2: http://github.com/simplegeo/python-oauth2
+- SimpleJson: http://cheeseshop.python.org/pypi/simplejson
+- Twitter: http://code.google.com/p/python-twitter/
+
+Twitter-Account:
+You need a twitter acount. And you need four different tokens so that this
+plugin can login to your accoung. Therefor go to
+https://dev.twitter.com/apps/new to create a new app. Fill out the fields with
+the red star. Go to settings and change the permissions from "read only" to
+"read and write". Go back to details and click on create access token. Now you
+have to take all this tokens and write them into the twitter.xml file.
+
+B3:
+Now you have to copy the twitter.py file to extplugins/ and twitter.xml to
+extplugins/conf/. Finally you need a new line in your b3.xml, something like:
+<plugin config="@b3/extplugins/conf/b3twitter.xml" name="b3twitter" />
+
