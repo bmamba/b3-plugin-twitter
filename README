@@ -1,0 +1,6 @@
+This plugin can send messages to a twitter acount. The following events can be tweeted:
+- kicks
+- tempbans
+- bans
+
+Additionally a player can send ingame a message via !twitter.
