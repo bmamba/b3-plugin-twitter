@@ -16,6 +16,15 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
+# Changelog:
+#
+# 08/08/2011 - 1.0 - BlackMamba
+# - initial version
+# 01/09/2011 - 1.1 - BlackMamba
+# - print tweets of a twitter account ingame
+# - print expiration time of a ban
+# - print admin name who banned the player
+# - now compatible with b3 v1.7.x
 
 __author__  = 'BlackMamba'
 __version__ = '1.0'
@@ -24,6 +33,66 @@ __version__ = '1.0'
 import b3, b3.events, b3.plugin
 import twitter
 import re
+import datetime, time
+
+class Tweet:
+	text = ""
+	id = 0
+	time = ""
+
+class Tweets:
+	tweets = None
+	current = None
+	newest = None
+	api = None
+	max = None
+	debug = None
+	user = None
+
+	def __init__(self, debug, api, user):
+		self.tweets = []
+		self.current = 0
+		self.newest = 0
+		self.max = 5
+		self.debug = debug
+		self.api = api
+		self.user = user
+
+	def getNext(self):
+		try:
+			tweet = self.tweets[self.current]
+		except:
+			current = 0
+			return None
+
+		self.current += 1
+		if self.current >= len(self.tweets) or self.current >= self.max:
+			self.current = 0
+		return tweet
+
+	def put(self,tweet):
+		self.tweets.append(tweet)
+		self.debug('adding %s' % tweet.text)
+		if tweet.id > self.newest:
+			self.newest = tweet.id
+			current = 0
+
+	def clear(self):
+		self.tweets = []
+
+	def reload(self):
+		tweets = self.api.GetUserTimeline(self.user)
+		for t in tweets:
+			tweet = Tweet()
+			tweet.id = t.id
+			tweet.text = t.text
+			st = time.strptime(t.created_at,"%a %b %d %H:%M:%S +0000 %Y")
+			dt = datetime.datetime(st[0], st[1], st[2], st[3], st[4], st[5])
+			offset = time.altzone
+			dt = dt + datetime.timedelta(seconds=-1*offset)
+			tweet.time = str(dt)
+			self.put(tweet)
+		
 
 class B3TwitterPlugin(b3.plugin.Plugin):
 
@@ -33,13 +102,25 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 	_tweetonbantemp = False
 	_tweetonban = False
 
+	_tweetAdmin = False
+	_tweetDate = True
+
 	_consumer_key = None
 	_consumer_secret = None
 	_access_token = None
 	_access_token_secret = None
+
+	_showtweetsminutes = 5
+	_showtweetsenabled = False
+	_showtweetsmax = 5
+	_showtweetsuser = None
 	
 	_twitterapi = None
  	_reColor = re.compile(r'(\^[0-9a-z])')
+
+	_cronTab = None
+	_cronTab2 = None
+	_tweets = None
   
 	def onLoadConfig(self):
 		self._consumer_key = self.config.get('authentication','consumer_key')
@@ -51,15 +132,18 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 		self._tweetonbantemp = self.config.getboolean('tweet','tweetonbantemp')
 		self._tweetonban = self.config.getboolean('tweet','tweetonban')
 
+		self._tweetAdmin = self.config.getboolean('tweet','tweetadminname')
+		self._tweetDate = self.config.getboolean('tweet','tweetexpirationdate')
+
+		self._showtweetsminutes = self.config.getint('showtweets','nexttweet')
+		self._showtweetsenabled = self.config.getboolean('showtweets','enabled')
+		self._showtweetsmax = self.config.getint('showtweets','maxtweets')
+		self._showtweetsreload = self.config.getint('showtweets','updatetweets')
+		self._showtweetsuser = self.config.get('showtweets','user')
+
 		self._twitterlevel =  self.config.getint('commands','twitterlevel')
 
-	def removeColors(self, text):
-		return re.sub(self._reColor, '', text).strip()
 
-	def startup(self):
-		"""\
-		Initialize plugin settings
-		"""
 		self._adminPlugin = self.console.getPlugin('admin') 
 		# Initialize Twitter Connection
 		self._twitterapi = twitter.Api(consumer_key=self._consumer_key, consumer_secret=self._consumer_secret, access_token_key=self._access_token, access_token_secret=self._access_token_secret)
@@ -74,6 +158,34 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 
 		self._adminPlugin.registerCommand(self, 'twitter', self._twitterlevel, self.cmd_twitter)
 
+		if self._showtweetsenabled and int(self._showtweetsminutes) >= 1 and self._showtweetsuser != None:
+			self._tweets = Tweets(self.debug, self._twitterapi, self._showtweetsuser)
+			self._tweets.reload()
+
+			if self._cronTab:
+				self.console.cron - self._cronTab
+
+			self._cronTab = b3.cron.PluginCronTab(self, self.showtweets, minute='*/%i' % int(self._showtweetsminutes))
+			self.console.cron + self._cronTab
+			self.debug('Showing tweets ingame enabled')
+
+			if int(self._showtweetsreload) >= 1:
+				if self._cronTab2:
+					self.console.cron - self._cronTab2
+
+				self._cronTab2 = b3.cron.PluginCronTab(self, self.reload_tweets, minute='*/%i' % int(self._showtweetsreload))
+				self.console.cron + self._cronTab2
+				self.debug('Reloading tweets every %i minutes enabled' % int(self._showtweetsreload))
+
+	def removeColors(self, text):
+		return re.sub(self._reColor, '', text).strip()
+
+	def startup(self):
+		"""\
+		Initialize plugin settings
+		"""
+		
+
 	def onEvent(self, event):
 		"""\
 		Handle intercepted events
@@ -81,26 +193,79 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 		if not event.client or event.client.cid == None or len(event.data) <= 0:
 			return
 
-		data = 'Bot: %s' % event.client.name
+		action = ''
 
 		if event.type == b3.events.EVT_CLIENT_KICK:
-			data = '%s was kicked' % data
+			action = 'kicked'
 
 		if event.type == b3.events.EVT_CLIENT_BAN_TEMP:
-			data = '%s was banned' % data
+			action = 'banned'
 
 		if event.type == b3.events.EVT_CLIENT_BAN:
-			data = '%s was banned' % data
+			action = 'banned'
 
-		if event.data != None:
-			if event.data != '':
-				data = '%s: %s' % (data, event.data)
+		p = self.getLastBanKick(event.client)
+		if p == None:
+			return
+		#old ban/kick
+		if time.time() - p.timeAdd > 60:
+			return
+		clientName = self.removeColors(event.client.name);
+		if self._tweetAdmin:
+			admin = b3.clients.getByCID(p.adminId)
+			text = '%s %s %s' % (self.removeColors(admin.name), action, clientName)
+		else:
+			text = '%s was %s' % (clientName, action)
+		if self._tweetDate and (p.type == 'Ban' or p.type == 'TempBan') :
+			dt = datetime.datetime.fromtimestamp(p.timeExpire)
+			if p.timeExpire == -1:
+				date = ' permanently'
+			else:
+				date = ' until %s' % (dt.strftime('%d/%m/%Y, %H:%M'))
+			text = '%s %s' % (text, date)
+		text = '%s: %s' % (text, self.removeColors(p.reason))
+		text = text[0:139]
+		self.debug('Tweet: %s' % text)
+		self._twitterapi.PostUpdate('%s' % text)
 
-		rmColor = self.removeColors(data)
-
-		self.debug('Tweet: %s' % rmColor)
 		status = self._twitterapi.PostUpdate('%s' % rmColor)
 
 	def cmd_twitter(self, data, client, cmd=None):
-		self.debug('Tweet: $s' % data)
+		self.debug('Tweet: %s' % data)
 		self._twitterapi.PostUpdate('%s' % data)
+
+	def showtweets(self):
+		tweet = self._tweets.getNext()
+		if tweet:
+			self.console.say('@%s tweets: %s (%s)' % (self._showtweetsuser, tweet.text, tweet.time))
+			self.debug('@%s tweets: %s (%s)' % (self._showtweetsuser, tweet.text, tweet.time))
+
+	def reload_tweets(self):
+		self.debug('Reloading tweets')
+		self._tweets.reload()
+
+	def getLastBanKick(self, client):
+		q = "select * from penalties where client_id = %i and type in ('Ban', 'TempBan', 'Kick') order by time_add desc limit 1" % client.id
+		self.debug(q)
+		cursor = self.console.storage.query(q)
+		g = cursor.getOneRow()
+		if not g:
+			self.debug('Nothing found')
+			return None
+		self.debug('Found at least one row: %s' % (str(g)))
+
+		penalty = b3.clients.Penalty
+		penalty.id = int(g['id'])
+		penalty.type	= g['type']
+		penalty.keyword = g['keyword']
+		penalty.reason = g['reason']
+		penalty.data = g['data']
+		penalty.duration = g['duration']
+		penalty.inactive	= int(g['inactive'])
+		penalty.timeAdd  = int(g['time_add'])
+		penalty.timeEdit = int(g['time_edit'])
+		penalty.timeExpire = int(g['time_expire'])
+		penalty.clientId = int(g['client_id'])
+		penalty.adminId = int(g['admin_id'])
+		
+		return penalty

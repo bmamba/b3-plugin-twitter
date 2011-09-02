@@ -1,5 +1,6 @@
 <configuration plugin="b3twitter">
 	<settings name="authentication">
+		<!-- see INSTALL file for explanation -->
 		<set name="consumer_key"></set>
 		<set name="consumer_secret"></set>
 		<set name="access_token"></set>
@@ -10,9 +11,24 @@
 		<set name="tweetonkick">False</set>
 		<set name="tweetonbantemp">True</set>
 		<set name="tweetonban">True</set>
+		<set name="tweetadminname">False</set>
+		<set name="tweetexpirationdate">True</set>
 	</settings>
 
 	<settings name="commands">
 		<set name="twitterlevel">100</set>
+	</settings>
+
+	<settings name="showtweets">
+		<!-- Showing tweets ingame or not -->
+		<set name="enabled">False</set>
+		<!-- Screen name of twitter account (for example BMambaDe) -->
+		<set name="user"></set>
+		<!-- How many tweets should be shown -->
+		<set name="maxtweets">5</set>
+		<!-- Every ... minutes next tweet will be shown -->
+		<set name="nexttweet">10</set>
+		<!-- Every ... minutes plugin will update tweets from twitter -->
+		<set name="updatetweets">5</set>
 	</settings>
 </configuration>
