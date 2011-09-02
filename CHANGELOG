@@ -1,0 +1,16 @@
+v1.0
+----
+
+- plugin tweets kicks and bans
+- admin can tweet ingame
+
+
+v1.1
+----
+
+- plugin tweets additional information if somebody was banned/kicked:
+  - expiration time of the ban
+  - admin name
+- plugin prints tweets of another twitter account
+- Bugfix: b3 changed data for EVT_CLIENT_BAN_TEMP and EVT_CLIENT_BAN
+

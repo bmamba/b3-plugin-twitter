@@ -1,6 +1,8 @@
-This plugin can send messages to a twitter acount. The following events can be tweeted:
-- kicks
-- tempbans
-- bans
+This plugin has the following functionality:
 
-Additionally a player can send ingame a message via !twitter.
+1. If somebody got banned or kick this plugin will tweet player name, reason, expiration time, admin name
+
+2. Admin can tweet ingame
+
+3. Tweets from another twitter account can be printed ingame
+
