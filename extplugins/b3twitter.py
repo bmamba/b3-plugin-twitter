@@ -25,9 +25,10 @@
 # - print expiration time of a ban
 # - print admin name who banned the player
 # - now compatible with b3 v1.7.x
+#
 
 __author__  = 'BlackMamba'
-__version__ = '1.0'
+__version__ = '1.1'
 
 
 import b3, b3.events, b3.plugin
@@ -197,31 +198,35 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 
 		if event.type == b3.events.EVT_CLIENT_KICK:
 			action = 'kicked'
+			p = event.client.lastKick
 
 		if event.type == b3.events.EVT_CLIENT_BAN_TEMP:
 			action = 'banned'
+			p = event.client.lastBan
 
 		if event.type == b3.events.EVT_CLIENT_BAN:
 			action = 'banned'
+			p = event.client.lastBan
 
-		p = self.getLastBanKick(event.client)
 		if p == None:
 			return
 		#old ban/kick
 		if time.time() - p.timeAdd > 60:
+			self.debug('I dont tweet this ban since it seems to be an old ban (older than %i seconds)' % (time.time() - p.timeAdd))
 			return
 		clientName = self.removeColors(event.client.name);
+		text = 'Bot:'
 		if self._tweetAdmin:
 			admin = b3.clients.getByCID(p.adminId)
-			text = '%s %s %s' % (self.removeColors(admin.name), action, clientName)
+			text = '%s %s %s %s' % (text, self.removeColors(admin.name), action, clientName)
 		else:
-			text = '%s was %s' % (clientName, action)
+			text = '%s %s was %s' % (text, clientName, action)
 		if self._tweetDate and (p.type == 'Ban' or p.type == 'TempBan') :
 			dt = datetime.datetime.fromtimestamp(p.timeExpire)
 			if p.timeExpire == -1:
-				date = ' permanently'
+				date = 'permanently'
 			else:
-				date = ' until %s' % (dt.strftime('%d/%m/%Y, %H:%M'))
+				date = 'until %s' % (dt.strftime('%d/%m/%Y, %H:%M'))
 			text = '%s %s' % (text, date)
 		text = '%s: %s' % (text, self.removeColors(p.reason))
 		text = text[0:139]
@@ -232,7 +237,7 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 
 	def cmd_twitter(self, data, client, cmd=None):
 		self.debug('Tweet: %s' % data)
-		self._twitterapi.PostUpdate('%s' % data)
+		self._twitterapi.PostUpdate('%s: %s' % (client.name, data))
 
 	def showtweets(self):
 		tweet = self._tweets.getNext()
@@ -244,28 +249,3 @@ class B3TwitterPlugin(b3.plugin.Plugin):
 		self.debug('Reloading tweets')
 		self._tweets.reload()
 
-	def getLastBanKick(self, client):
-		q = "select * from penalties where client_id = %i and type in ('Ban', 'TempBan', 'Kick') order by time_add desc limit 1" % client.id
-		self.debug(q)
-		cursor = self.console.storage.query(q)
-		g = cursor.getOneRow()
-		if not g:
-			self.debug('Nothing found')
-			return None
-		self.debug('Found at least one row: %s' % (str(g)))
-
-		penalty = b3.clients.Penalty
-		penalty.id = int(g['id'])
-		penalty.type	= g['type']
-		penalty.keyword = g['keyword']
-		penalty.reason = g['reason']
-		penalty.data = g['data']
-		penalty.duration = g['duration']
-		penalty.inactive	= int(g['inactive'])
-		penalty.timeAdd  = int(g['time_add'])
-		penalty.timeEdit = int(g['time_edit'])
-		penalty.timeExpire = int(g['time_expire'])
-		penalty.clientId = int(g['client_id'])
-		penalty.adminId = int(g['admin_id'])
-		
-		return penalty
